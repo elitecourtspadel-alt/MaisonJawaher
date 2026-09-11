@@ -1,0 +1,110 @@
+/* ================================
+   Shop page styles
+   ================================ */
+
+.site-header-static {
+  position: sticky;
+  background: var(--wine-deep);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.shop-main { background: var(--cream); }
+
+.shop-hero {
+  background: linear-gradient(155deg, var(--wine-light), var(--wine-deep));
+  padding: 64px 0 56px;
+  text-align: center;
+}
+.shop-hero .eyebrow { margin-bottom: 10px; }
+.shop-hero .section-title { margin: 0; }
+
+.shop-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 40px 0 8px;
+}
+.filter-tab {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  letter-spacing: 0.03em;
+  padding: 9px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+.filter-tab:hover { border-color: var(--wine); color: var(--wine); }
+.filter-tab.active { background: var(--wine); border-color: var(--wine); color: var(--cream); }
+
+.shop-empty {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 26px;
+  padding: 32px 0 96px;
+}
+
+.shop-product {
+  display: flex;
+  flex-direction: column;
+}
+
+.shop-product-media {
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(155deg, var(--wine-light), var(--wine-deep));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(250,244,236,0.85);
+  position: relative;
+  margin-bottom: 14px;
+}
+.shop-product-media img { width: 100%; height: 100%; object-fit: cover; }
+
+.shop-product-badge {
+  position: absolute;
+  top: 12px; left: 12px;
+  background: rgba(250,244,236,0.92);
+  color: var(--wine-deep);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.shop-product-badge.out {
+  background: rgba(43,26,31,0.85);
+  color: var(--cream);
+}
+
+.shop-product-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0 0 4px;
+}
+.shop-product-price {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .shop-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .shop-grid { grid-template-columns: 1fr 1fr; gap: 16px; }
+  .shop-hero { padding-top: 128px; }
+}
