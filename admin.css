@@ -28,6 +28,73 @@
 
 .admin-main { padding: 48px 32px 96px; }
 
+.admin-logout {
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ================================
+   Login screen
+   ================================ */
+.login-screen {
+  min-height: calc(100vh - 64px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background: var(--cream-2);
+}
+
+.login-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 44px 40px;
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+}
+
+.login-mark {
+  color: var(--wine);
+  display: inline-flex;
+  margin-bottom: 14px;
+}
+
+.login-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 500;
+  margin: 0 0 6px;
+}
+
+.login-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0 0 26px;
+}
+
+.login-card .field { text-align: left; margin-bottom: 16px; }
+
+.login-submit { width: 100%; margin-top: 6px; }
+
+.login-hint {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin: 22px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.login-hint code {
+  background: var(--cream-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
 .admin-title {
   font-family: var(--font-display);
   font-size: clamp(28px, 3.4vw, 36px);
@@ -85,6 +152,8 @@
 .field input[type="text"],
 .field input[type="number"],
 .field input[type="url"],
+.field input[type="email"],
+.field input[type="password"],
 .field select,
 .field textarea {
   font-family: var(--font-body);

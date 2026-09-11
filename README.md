@@ -56,9 +56,9 @@ products — name, category, price, image URL, description, whether it's
 section. Changes appear on `index.html` and `shop.html` within a few seconds,
 no rebuild or redeploy needed.
 
-**`admin.html` has no login** — same as your other admin panels, it relies on
-the URL not being shared publicly. See the security note at the bottom of
-`SETUP.md` before launching.
+`admin.html` requires signing in with an email and password before it shows
+anything — see `SETUP.md` (steps 4-5) to create your login and lock down
+the database rules so that's actually enforced, not just a UI gate.
 
 ## Newsletter form
 

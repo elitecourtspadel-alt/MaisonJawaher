@@ -205,11 +205,82 @@ filterTabs.addEventListener('click', (e) => {
   renderList();
 });
 
-if (!isDbReady()) {
-  connectionWarning.hidden = false;
+// ============================================================================
+// Auth — sign in required before the product form/list is shown or fetched
+// ============================================================================
+
+const loginScreen = document.getElementById('loginScreen');
+const loginForm = document.getElementById('loginForm');
+const loginBtn = document.getElementById('loginBtn');
+const loginStatus = document.getElementById('loginStatus');
+const adminContent = document.getElementById('adminContent');
+const logoutBtn = document.getElementById('logoutBtn');
+
+let unsubscribeProducts = null;
+
+function friendlyAuthError(err) {
+  const code = err && err.code;
+  if (code === 'auth/invalid-email') return 'That email address looks invalid.';
+  if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+    return 'Incorrect email or password.';
+  }
+  if (code === 'auth/too-many-requests') return 'Too many attempts — wait a bit and try again.';
+  return "Couldn't sign in — check your connection and try again.";
 }
 
-subscribeToProducts((products) => {
-  allProducts = products;
-  renderList();
-});
+if (loginForm) {
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!isDbReady() || typeof auth === 'undefined' || !auth) {
+      loginStatus.textContent = 'Firebase is not configured yet — see SETUP.md.';
+      loginStatus.className = 'form-status error';
+      return;
+    }
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    loginBtn.disabled = true;
+    loginStatus.textContent = '';
+    loginStatus.className = 'form-status';
+    try {
+      await auth.signInWithEmailAndPassword(email, password);
+    } catch (err) {
+      loginStatus.textContent = friendlyAuthError(err);
+      loginStatus.className = 'form-status error';
+      console.error(err);
+    } finally {
+      loginBtn.disabled = false;
+    }
+  });
+}
+
+if (logoutBtn) {
+  logoutBtn.addEventListener('click', () => {
+    if (typeof auth !== 'undefined' && auth) auth.signOut();
+  });
+}
+
+if (typeof auth === 'undefined' || !auth) {
+  connectionWarning.hidden = false;
+} else {
+  auth.onAuthStateChanged((user) => {
+    if (user) {
+      loginScreen.hidden = true;
+      adminContent.hidden = false;
+      logoutBtn.hidden = false;
+      if (!unsubscribeProducts) {
+        unsubscribeProducts = subscribeToProducts((products) => {
+          allProducts = products;
+          renderList();
+        });
+      }
+    } else {
+      loginScreen.hidden = false;
+      adminContent.hidden = true;
+      logoutBtn.hidden = true;
+      if (unsubscribeProducts) {
+        unsubscribeProducts();
+        unsubscribeProducts = null;
+      }
+    }
+  });
+}

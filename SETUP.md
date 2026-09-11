@@ -45,31 +45,81 @@ gets that database running in about 5 minutes, for free.
 That's it — `admin.html`, `shop.html`, and the homepage's "New In" section will
 now all read and write to this database.
 
-## 4. Try it
+## 4. Turn on login for the admin page
+
+The admin page now requires signing in with an email and password before it
+shows anything or lets you save. Two steps to activate it:
+
+### 4a. Turn on the Email/Password sign-in method
+
+1. In the Firebase console, go to **Build → Authentication**.
+2. Click **Get started**.
+3. Click **Email/Password** in the list of providers, toggle it **on**, and
+   click **Save**.
+
+### 4b. Create your own login
+
+1. Still in **Authentication**, go to the **Users** tab.
+2. Click **Add user**.
+3. Enter the email and password *you* want to sign in with on `admin.html`
+   (this doesn't need to be a real inbox — it's just your login credential).
+4. Click **Add user**.
+
+That's your admin login now. Add more users here later if someone else
+should also have access — there's no sign-up form on the site itself, so
+only people you manually add in this Users tab can ever log in.
+
+## 5. Lock down the database rules
+
+By default a brand-new Realtime Database is in "test mode," which lets
+*anyone* read and write your data — no login required — regardless of the
+login screen on `admin.html` (the login screen alone is just a UI gate; the
+rules are what actually enforce it). Fix that:
+
+1. In the Firebase console, go to **Build → Realtime Database → Rules**.
+2. Replace whatever is there with:
+
+   ```json
+   {
+     "rules": {
+       "maison_jawaher": {
+         "products": {
+           ".read": true,
+           ".write": "auth != null"
+         }
+       }
+     }
+   }
+   ```
+
+3. Click **Publish**.
+
+This keeps products publicly *readable* (so `index.html` and `shop.html`
+can display them to visitors without logging in) but only *writable* by
+someone signed in — i.e., only through `admin.html` after entering the
+email/password you created in step 4b.
+
+## 6. Try it
 
 1. Open `admin.html` in a browser (or push everything to GitHub and open
    `https://<you>.github.io/<repo>/admin.html`).
-2. Add a product with a name, category, price, and an image URL.
-3. Open `index.html` or `shop.html` — the product should appear within a
-   couple of seconds.
+2. Sign in with the email/password you created in step 4b.
+3. Add a product with a name, category, price, and an image URL.
+4. Open `index.html` or `shop.html` — the product should appear within a
+   couple of seconds, no login needed there.
 
-## ⚠️ Security note — please read before launching
+## Notes on this setup
 
-"Test mode" database rules mean **anyone who finds your `admin.html` URL can
-add, edit, or delete products** — there's no password on this admin page,
-matching how your other admin panels work. That's fine while you're setting
-things up, but before sharing the site publicly, do one of these:
-
-- **Simplest:** don't link to `admin.html` from anywhere public, and don't
-  share the URL. This is "security by obscurity" — not real security, but
-  it's the same approach your other admin panels use.
-- **Better:** in the Firebase console, go to **Realtime Database → Rules**
-  and tighten write access, e.g. requiring a specific secret in the request
-  or switching to Firebase Authentication (email/password login) so only you
-  can write. If you want, ask Claude to add a login screen to `admin.html`
-  and set up matching database rules — that's a bigger change than test mode
-  but worth it once real customers are visiting the site.
-
-Either way, test-mode rules **expire automatically after 30 days** and the
-database will stop accepting writes until you update the rules — so you'll
-need to revisit this regardless.
+- **Forgot your password?** Firebase Authentication has no built-in "forgot
+  password" flow wired up on this page. Reset it manually in the Firebase
+  console under **Authentication → Users** (click the user → reset password),
+  or delete and re-add the user with a new password.
+- **This is real protection, not just obscurity** — as long as you complete
+  step 5. If you skip step 5 and leave the database in test mode, the login
+  screen is cosmetic only: anyone who finds your Firebase project's API
+  details could still write to the database directly, bypassing `admin.html`
+  entirely.
+- Test-mode rules (if you haven't replaced them yet) **expire automatically
+  after 30 days**, after which the database stops accepting *any* reads or
+  writes — including from the public site — until you publish real rules
+  like the ones in step 5.
