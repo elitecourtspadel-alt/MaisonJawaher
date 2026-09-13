@@ -17,13 +17,13 @@
 // ============================================================================
 
 const firebaseConfig = {
-  apiKey: "PASTE_YOUR_API_KEY_HERE",
-  authDomain: "PASTE_YOUR_PROJECT_ID.firebaseapp.com",
-  databaseURL: "https://PASTE_YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-  projectId: "PASTE_YOUR_PROJECT_ID",
-  storageBucket: "PASTE_YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "PASTE_YOUR_SENDER_ID",
-  appId: "PASTE_YOUR_APP_ID"
+  apiKey: "AIzaSyBp_Qd-pl-i6O5MFiFDzfMUCi2zpW_uG5E",,
+  authDomain: "maison-jawaher.firebaseapp.com",
+  databaseURL: "https://maison-jawaher-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "maison-jawaher",
+  storageBucket: "maison-jawaher.firebasestorage.app",
+  messagingSenderId: "70706209338",
+  appId: "1:70706209338:web:54bc68a0ff05563b1bcb03"
 };
 
 // Everything below this line you can leave alone.
