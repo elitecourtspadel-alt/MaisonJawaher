@@ -17,7 +17,7 @@
 // ============================================================================
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBp_Qd-pl-i6O5MFiFDzfMUCi2zpW_uG5E",,
+  apiKey: "AIzaSyBp_Qd-pl-i6O5MFiFDzfMUCi2zpW_uG5E",
   authDomain: "maison-jawaher.firebaseapp.com",
   databaseURL: "https://maison-jawaher-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "maison-jawaher",
