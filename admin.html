@@ -90,8 +90,24 @@
       </div>
 
       <div class="field">
-        <label for="fieldImage">Image URL</label>
-        <input type="url" id="fieldImage" placeholder="https://... (leave blank to use a placeholder icon)">
+        <label for="fieldImageFile">Product Photo</label>
+        <div class="upload-row">
+          <label for="fieldImageFile" class="btn btn-ghost upload-btn">Choose Photo</label>
+          <input type="file" id="fieldImageFile" accept="image/*" class="sr-only">
+          <span class="upload-filename" id="uploadFilename">No file chosen</span>
+        </div>
+        <div class="upload-progress" id="uploadProgress" hidden>
+          <div class="upload-progress-track"><div class="upload-progress-fill" id="uploadProgressFill"></div></div>
+        </div>
+        <p class="field-hint">
+          <button type="button" class="link-btn" id="toggleUrlField">or paste an image URL instead</button>
+        </p>
+        <input type="url" id="fieldImage" placeholder="https://..." hidden>
+      </div>
+
+      <div class="image-preview" id="imagePreview" hidden>
+        <img id="imagePreviewImg" alt="Preview">
+        <button type="button" class="remove-image-btn" id="removeImageBtn" aria-label="Remove photo">✕</button>
       </div>
 
       <div class="field">
@@ -108,10 +124,6 @@
           <input type="checkbox" id="fieldInStock" checked>
           In stock
         </label>
-      </div>
-
-      <div class="image-preview" id="imagePreview" hidden>
-        <img id="imagePreviewImg" alt="Preview">
       </div>
 
       <div class="form-actions">
@@ -141,6 +153,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-storage-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="products.js"></script>
 <script src="admin.js"></script>

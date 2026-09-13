@@ -69,12 +69,31 @@ That's your admin login now. Add more users here later if someone else
 should also have access — there's no sign-up form on the site itself, so
 only people you manually add in this Users tab can ever log in.
 
-## 5. Lock down the database rules
+## 5. Turn on Storage for photo uploads
 
-By default a brand-new Realtime Database is in "test mode," which lets
-*anyone* read and write your data — no login required — regardless of the
-login screen on `admin.html` (the login screen alone is just a UI gate; the
-rules are what actually enforce it). Fix that:
+The admin page lets you upload product photos directly instead of pasting a
+URL from somewhere else. That needs Firebase Storage turned on:
+
+1. In the Firebase console, go to **Build → Storage**.
+2. Click **Get started**.
+3. Click through the prompts (default location is fine).
+4. Choose **Start in test mode** for now — same as the database, you'll lock
+   this down properly in the next step.
+
+That's it — the "Choose Photo" button on `admin.html` will now upload
+straight to your project and use the resulting link automatically. You can
+still click "or paste an image URL instead" if you'd rather use an image
+that's already hosted elsewhere.
+
+## 6. Lock down the database and storage rules
+
+By default, a brand-new Realtime Database *and* a brand-new Storage bucket
+are both in "test mode," which lets *anyone* read and write your data — no
+login required — regardless of the login screen on `admin.html` (the login
+screen alone is just a UI gate; these rules are what actually enforce it).
+Fix both:
+
+### 6a. Database rules
 
 1. In the Firebase console, go to **Build → Realtime Database → Rules**.
 2. Replace whatever is there with:
@@ -94,17 +113,41 @@ rules are what actually enforce it). Fix that:
 
 3. Click **Publish**.
 
-This keeps products publicly *readable* (so `index.html` and `shop.html`
-can display them to visitors without logging in) but only *writable* by
-someone signed in — i.e., only through `admin.html` after entering the
-email/password you created in step 4b.
+### 6b. Storage rules
 
-## 6. Try it
+1. In the Firebase console, go to **Build → Storage → Rules**.
+2. Replace whatever is there with:
+
+   ```
+   rules_version = '2';
+   service firebase.storage {
+     match /b/{bucket}/o {
+       match /maison_jawaher/products/{fileName} {
+         allow read: if true;
+         allow write: if request.auth != null
+                      && request.resource.size < 5 * 1024 * 1024
+                      && request.resource.contentType.matches('image/.*');
+       }
+     }
+   }
+   ```
+
+3. Click **Publish**.
+
+Together, these keep products and photos publicly *readable* (so
+`index.html` and `shop.html` can display them to visitors without logging
+in) but only *writable/uploadable* by someone signed in — i.e., only
+through `admin.html` after entering the email/password you created in step
+4b. The storage rule also rejects anything over 5MB or that isn't an image,
+as a bit of extra safety on top of the same checks already built into the
+admin page.
+
+## 7. Try it
 
 1. Open `admin.html` in a browser (or push everything to GitHub and open
    `https://<you>.github.io/<repo>/admin.html`).
 2. Sign in with the email/password you created in step 4b.
-3. Add a product with a name, category, price, and an image URL.
+3. Add a product with a name, category, price, and a photo (or a pasted URL).
 4. Open `index.html` or `shop.html` — the product should appear within a
    couple of seconds, no login needed there.
 
@@ -115,11 +158,16 @@ email/password you created in step 4b.
   console under **Authentication → Users** (click the user → reset password),
   or delete and re-add the user with a new password.
 - **This is real protection, not just obscurity** — as long as you complete
-  step 5. If you skip step 5 and leave the database in test mode, the login
-  screen is cosmetic only: anyone who finds your Firebase project's API
-  details could still write to the database directly, bypassing `admin.html`
+  step 6. If you skip it and leave things in test mode, the login screen is
+  cosmetic only: anyone who finds your Firebase project's API details could
+  still write to the database or storage directly, bypassing `admin.html`
   entirely.
-- Test-mode rules (if you haven't replaced them yet) **expire automatically
-  after 30 days**, after which the database stops accepting *any* reads or
-  writes — including from the public site — until you publish real rules
-  like the ones in step 5.
+- Test-mode rules (for both database and storage, if you haven't replaced
+  them yet) **expire automatically after 30 days**, after which they stop
+  accepting *any* reads or writes — including from the public site — until
+  you publish real rules like the ones in step 6.
+- **Uploaded photos aren't automatically deleted** when you delete a product
+  or replace its photo — they just stop being linked to anything. This
+  won't cost you anything meaningful at small scale (Firebase Storage's
+  free tier is 5GB), but if you want cleanup automation later, that's a
+  small addition Claude can make to `admin.js`.

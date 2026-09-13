@@ -51,7 +51,8 @@ name the repository `<your-username>.github.io` and push these files to its root
 ## Managing products
 
 Open `admin.html` (locally or on your deployed site) to add, edit, or delete
-products — name, category, price, image URL, description, whether it's
+products — name, category, price, a photo (uploaded directly or pasted as a
+URL), description, whether it's
 "in stock," and whether it shows in the homepage's "New In This Season"
 section. Changes appear on `index.html` and `shop.html` within a few seconds,
 no rebuild or redeploy needed.

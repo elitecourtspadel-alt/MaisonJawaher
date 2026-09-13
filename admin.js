@@ -28,6 +28,12 @@ const productIdField = document.getElementById('productId');
 const imageField = document.getElementById('fieldImage');
 const imagePreview = document.getElementById('imagePreview');
 const imagePreviewImg = document.getElementById('imagePreviewImg');
+const removeImageBtn = document.getElementById('removeImageBtn');
+const fileInput = document.getElementById('fieldImageFile');
+const uploadFilename = document.getElementById('uploadFilename');
+const uploadProgress = document.getElementById('uploadProgress');
+const uploadProgressFill = document.getElementById('uploadProgressFill');
+const toggleUrlField = document.getElementById('toggleUrlField');
 const productList = document.getElementById('productList');
 const productCount = document.getElementById('productCount');
 const emptyState = document.getElementById('emptyState');
@@ -35,8 +41,13 @@ const connectionWarning = document.getElementById('connectionWarning');
 
 let allProducts = [];
 let activeFilter = 'all';
+let isUploading = false;
 
-imageField.addEventListener('input', () => {
+function isStorageReady() {
+  return typeof storage !== 'undefined' && !!storage;
+}
+
+function updateImagePreview() {
   const url = imageField.value.trim();
   if (url) {
     imagePreviewImg.src = url;
@@ -44,6 +55,87 @@ imageField.addEventListener('input', () => {
   } else {
     imagePreview.hidden = true;
   }
+}
+
+imageField.addEventListener('input', updateImagePreview);
+
+toggleUrlField.addEventListener('click', () => {
+  const showing = !imageField.hidden;
+  imageField.hidden = showing;
+  toggleUrlField.textContent = showing ? 'or paste an image URL instead' : 'hide URL field';
+  if (!showing) imageField.focus();
+});
+
+removeImageBtn.addEventListener('click', () => {
+  imageField.value = '';
+  fileInput.value = '';
+  uploadFilename.textContent = 'No file chosen';
+  updateImagePreview();
+});
+
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    formStatus.textContent = 'Please choose an image file.';
+    formStatus.className = 'form-status error';
+    fileInput.value = '';
+    return;
+  }
+  const maxSizeMB = 5;
+  if (file.size > maxSizeMB * 1024 * 1024) {
+    formStatus.textContent = `That image is too large — please use one under ${maxSizeMB}MB.`;
+    formStatus.className = 'form-status error';
+    fileInput.value = '';
+    return;
+  }
+  if (!isStorageReady()) {
+    formStatus.textContent = 'Firebase Storage is not configured yet — see SETUP.md.';
+    formStatus.className = 'form-status error';
+    fileInput.value = '';
+    return;
+  }
+
+  uploadFilename.textContent = file.name;
+  uploadProgress.hidden = false;
+  uploadProgressFill.style.width = '0%';
+  formStatus.textContent = 'Uploading photo…';
+  formStatus.className = 'form-status';
+  isUploading = true;
+  submitBtn.disabled = true;
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+  const path = `maison_jawaher/products/${Date.now()}_${safeName}`;
+  const uploadTask = storage.ref(path).put(file);
+
+  uploadTask.on(
+    'state_changed',
+    (snapshot) => {
+      const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+      uploadProgressFill.style.width = pct + '%';
+    },
+    (err) => {
+      console.error(err);
+      formStatus.textContent = "Upload failed — check your connection and try again.";
+      formStatus.className = 'form-status error';
+      uploadProgress.hidden = true;
+      uploadFilename.textContent = 'No file chosen';
+      fileInput.value = '';
+      isUploading = false;
+      submitBtn.disabled = false;
+    },
+    async () => {
+      const url = await uploadTask.snapshot.ref.getDownloadURL();
+      imageField.value = url;
+      updateImagePreview();
+      formStatus.textContent = 'Photo uploaded.';
+      formStatus.className = 'form-status';
+      uploadProgress.hidden = true;
+      isUploading = false;
+      submitBtn.disabled = false;
+    }
+  );
 });
 
 function resetForm() {
@@ -53,6 +145,10 @@ function resetForm() {
   submitBtn.textContent = 'Add Product';
   cancelEditBtn.hidden = true;
   imagePreview.hidden = true;
+  uploadFilename.textContent = 'No file chosen';
+  uploadProgress.hidden = true;
+  imageField.hidden = true;
+  toggleUrlField.textContent = 'or paste an image URL instead';
   formStatus.textContent = '';
   formStatus.className = 'form-status';
 }
@@ -61,6 +157,12 @@ cancelEditBtn.addEventListener('click', resetForm);
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
+
+  if (isUploading) {
+    formStatus.textContent = 'Hang on — the photo is still uploading.';
+    formStatus.className = 'form-status error';
+    return;
+  }
 
   const product = {
     name: document.getElementById('fieldName').value.trim(),
@@ -101,16 +203,14 @@ function startEdit(product) {
   categorySelect.value = product.category || 'rings';
   document.getElementById('fieldPrice').value = product.price || '';
   imageField.value = product.imageUrl || '';
+  fileInput.value = '';
+  uploadFilename.textContent = 'No file chosen';
+  uploadProgress.hidden = true;
   document.getElementById('fieldDescription').value = product.description || '';
   document.getElementById('fieldFeatured').checked = !!product.featured;
   document.getElementById('fieldInStock').checked = product.inStock !== false;
 
-  if (product.imageUrl) {
-    imagePreviewImg.src = product.imageUrl;
-    imagePreview.hidden = false;
-  } else {
-    imagePreview.hidden = true;
-  }
+  updateImagePreview();
 
   formTitle.textContent = `Editing "${product.name}"`;
   submitBtn.textContent = 'Save Changes';

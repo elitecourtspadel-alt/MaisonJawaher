@@ -29,6 +29,7 @@ const firebaseConfig = {
 // Everything below this line you can leave alone.
 let db;
 let auth;
+let storage;
 try {
   if (typeof firebase === 'undefined') {
     throw new Error('Firebase SDK did not load — check your internet connection or ad-blocker.');
@@ -38,8 +39,10 @@ try {
   }
   db = firebase.database();
   auth = firebase.auth();
+  storage = firebase.storage();
 } catch (err) {
   console.error('Firebase did not initialize:', err.message);
   db = undefined;
   auth = undefined;
+  storage = undefined;
 }
