@@ -136,6 +136,12 @@ a { color: inherit; text-decoration: none; }
 }
 .wordmark-mark { color: var(--gold); display: inline-flex; }
 
+.header-logo {
+  height: 40px;
+  width: auto;
+  display: block;
+}
+
 .main-nav {
   display: flex;
   gap: 34px;
@@ -200,6 +206,12 @@ a { color: inherit; text-decoration: none; }
 .hero-inner { max-width: 720px; }
 
 .hero-emblem { display: flex; justify-content: center; margin-bottom: 20px; }
+
+.hero-logo {
+  width: 180px;
+  height: auto;
+  display: block;
+}
 
 .hero-title {
   font-family: var(--font-display);
@@ -572,6 +584,8 @@ a { color: inherit; text-decoration: none; }
   .main-nav { display: none; }
   .nav-toggle { display: flex; }
   .header-actions .btn-pill { display: none; }
+
+  .hero-logo { width: 130px; }
 
   .site-header.nav-open .main-nav {
     display: flex;

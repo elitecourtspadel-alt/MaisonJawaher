@@ -59,9 +59,20 @@
 }
 
 .login-mark {
-  color: var(--wine);
-  display: inline-flex;
-  margin-bottom: 14px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--wine-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 18px;
+  overflow: hidden;
+}
+.login-mark img {
+  width: 84%;
+  height: 84%;
+  object-fit: contain;
 }
 
 .login-title {
