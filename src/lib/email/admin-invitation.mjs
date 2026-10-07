@@ -1,0 +1,12 @@
+// Shared Node-compatible onboarding template for the production provisioning tool.
+const escape = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+export function adminInvitation({ name, password, expiresAt, siteUrl, adminPath }) {
+  const url = `${siteUrl.replace(/\/$/, '')}${adminPath}/login`;
+  const instructions = 'Sign in with this one-time password, choose a permanent password, then set up and verify an authenticator app. Two-factor authentication is mandatory before portal access.';
+  const expiry = new Date(expiresAt).toUTCString();
+  return {
+    subject: 'Your secure admin invitation · Maison Jawaher',
+    text: `Hello ${name},\n\n${instructions}\n\nTemporary password: ${password}\nExpires: ${expiry} (15 minutes). One use only.\n\n${url}\n\nNever share this password. If it expires, ask the site owner to reissue your invitation.`,
+    html: `<!doctype html><html lang="en"><body style="margin:0;background:#faf7f0;font-family:Arial,sans-serif;color:#342126"><table role="presentation" width="100%"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" style="max-width:600px;background:#fff;border:1px solid #eadfd9;border-radius:20px;overflow:hidden"><tr><td style="background:#68152f;padding:30px;color:#f7ecdd;text-align:center;font-family:Georgia,serif;font-size:27px">Maison Jawaher</td></tr><tr><td style="padding:32px"><h1 style="font-family:Georgia,serif;font-weight:normal">Your private workspace awaits</h1><p>Hello ${escape(name)},</p><p style="line-height:1.7">${escape(instructions)}</p><div style="background:#faf7f0;border:1px solid #eadfd9;padding:20px;border-radius:12px"><p style="margin-top:0">Your temporary password</p><p style="font-family:monospace;font-size:20px;word-break:break-all;color:#68152f">${escape(password)}</p><p style="font-size:13px">One use only · Expires ${escape(expiry)}</p></div><p style="margin:28px 0"><a href="${escape(url)}" style="background:#68152f;color:#fff;text-decoration:none;padding:14px 24px;border-radius:24px;display:inline-block">Set up your admin account</a></p><p style="font-size:13px;color:#755d60;line-height:1.7">Never share this password. If it expires, ask the site owner to reissue your invitation.</p></td></tr><tr><td style="border-top:1px solid #eadfd9;padding:20px;text-align:center;font-size:12px;color:#755d60">Maison Jawaher · Account security</td></tr></table></td></tr></table></body></html>`,
+  };
+}

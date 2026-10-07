@@ -1,0 +1,414 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { registerHooks } from 'node:module';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import sharp from 'sharp';
+import { createHmac } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+
+// Isolated local backend and cookie jar; never touches the site's .data directory.
+fs.mkdirSync('test/.tmp', { recursive: true });
+process.env.APP_MODE = 'test';
+process.env.APP_SECRET = 'regression-test-secret';
+process.env.LOCAL_DATA_DIR = fs.mkdtempSync(path.resolve('test/.tmp/admin-'));
+const jar = new Map();
+globalThis.__testCookies = {
+  get: (key) => jar.has(key) ? { value: jar.get(key) } : undefined,
+  set: (key, value, options) => options?.maxAge === 0 ? jar.delete(key) : jar.set(key, value),
+  delete: (key) => jar.delete(key), getAll: () => [...jar].map(([name, value]) => ({ name, value })),
+};
+globalThis.__sentMail = [];
+registerHooks({
+  resolve(specifier, context, next) {
+    const shims = { 'server-only': '', 'next/headers': 'export async function cookies(){return globalThis.__testCookies}; export async function headers(){return new Headers({"user-agent":"Chrome/100 Windows"})}', 'next/cache': 'export function revalidatePath(){}', 'next/navigation': 'export function redirect(url){throw new Error(url)}', 'nodemailer': 'export default {createTransport:()=>({sendMail:async(mail)=>{if(globalThis.__mailFailure)throw new Error("mock smtp failed");globalThis.__sentMail.push(mail)}})}' };
+    if (specifier in shims) return { url: `data:text/javascript,${encodeURIComponent(shims[specifier])}`, shortCircuit: true };
+    let candidate;
+    if (specifier.startsWith('@/')) candidate = path.resolve('src', specifier.slice(2));
+    else if (specifier.startsWith('.') && context.parentURL?.startsWith('file:')) candidate = path.resolve(path.dirname(fileURLToPath(context.parentURL)), specifier);
+    if (candidate && fs.existsSync(`${candidate}.ts`)) return { url: pathToFileURL(`${candidate}.ts`).href, shortCircuit: true };
+    return next(specifier, context);
+  },
+});
+const load = (name) => import(pathToFileURL(path.resolve(name)).href);
+const { getDb, saveDb, createLocalClient, resolveUpload } = await load('src/lib/local/db.ts');
+const { setLocalSession } = await load('src/lib/local/auth.ts');
+const { startAdminIdle, writeAdminIdle, readAdminIdle } = await load('src/lib/admin-idle.ts');
+const { getAdmin } = await load('src/lib/admin-auth.ts');
+const { renewAdminActivity, expireAdminSession } = await load('src/app/(admin)/admin/actions/session.ts');
+const { newIdleToken, encodeIdleToken, decodeIdleToken, validIdleToken, ABSOLUTE_SESSION_MS } = await load('src/lib/idle-token.ts');
+const { saveSlide, saveCategory, toggleCategory } = await load('src/app/(admin)/admin/actions/content.ts');
+const { saveProduct, toggleProduct } = await load('src/app/(admin)/admin/actions/products.ts');
+const { uploadImage } = await load('src/app/(admin)/admin/actions/media.ts');
+const { removeUnusedMedia, cleanupAbandonedUploads } = await load('src/lib/admin/media-cleanup.ts');
+const { GET } = await load('src/app/api/cron/supabase-keepalive/route.ts');
+const uid = '00000000-0000-4000-8000-000000009999';
+const db = getDb();
+db.app_users.push({ id: uid, email: 'test@example.invalid', full_name: 'Test Admin', is_active: true, totp_enabled: false });
+db.user_roles.push({ user_id: uid, role_id: '00000000-0000-4000-8000-000000000001', is_active: true });
+saveDb();
+await setLocalSession(uid, 2); await startAdminIdle(uid);
+assert.ok(await getAdmin());
+const token = newIdleToken(uid, 1000);
+assert.equal(decodeIdleToken(encodeIdleToken(token, 'secret'), 'other'), null);
+assert.equal(decodeIdleToken(encodeIdleToken(token, 'secret') + 'x', 'secret'), null);
+assert.equal(validIdleToken(token, 'other', 30, 2000), false);
+assert.equal(validIdleToken(token, uid, 30, 1000 + 30 * 60_000), false);
+assert.equal(validIdleToken({ ...token, last: 1000 + ABSOLUTE_SESSION_MS }, uid, 30, 1000 + ABSOLUTE_SESSION_MS), false);
+const expired = { ...await readAdminIdle(), last: Date.now() - 31 * 60_000, started: Date.now() - 60 * 60_000 };
+await writeAdminIdle(expired);
+assert.equal(await getAdmin(), null);
+assert.equal((await renewAdminActivity()).ok, false);
+await startAdminIdle(uid);
+assert.equal((await expireAdminSession()).expired, false, 'another tab renewal prevents stale logout');
+assert.equal((await renewAdminActivity()).ok, true);
+console.log('PASS: signed sessions, server expiry, renewal and stale-tab logout');
+
+let result = await saveSlide({ image_url: null, is_active: true });
+assert.equal(result.ok, false); assert.equal(result.fieldErrors.image_url, 'Please add a photo for this slide');
+const wording = { fr: { name: 'Essai', title: 'Essai' }, en: { name: 'Test', title: 'Test' } };
+result = await saveCategory({ is_active: true, translations: wording });
+assert.equal(result.ok, false); assert.ok(result.fieldErrors.image_url);
+result = await saveCategory({ is_active: false, translations: wording });
+assert.equal(result.ok, true);
+assert.equal((await toggleCategory(result.id, true)).ok, false);
+let product = await saveProduct({ is_active: true, translations: wording });
+assert.equal(product.ok, false); assert.ok(product.fieldErrors.images);
+product = await saveProduct({ is_active: false, translations: wording });
+assert.equal(product.ok, true);
+assert.equal((await toggleProduct(product.id, 'is_active', true)).ok, false);
+console.log('PASS: friendly missing-photo errors, inactive drafts and activation checks');
+
+const fd = new FormData(); fd.set('folder', 'products');
+fd.set('file', new File(['not a picture'], 'broken.jpg', { type: 'image/jpeg' }));
+assert.equal((await uploadImage(fd)).ok, false);
+const photo = await sharp({ create: { width: 40, height: 60, channels: 4, background: '#701734' } }).png().toBuffer();
+fd.set('file', new File([photo], 'photo.png', { type: 'image/png' }));
+const uploaded = await uploadImage(fd);
+assert.equal(uploaded.ok, true); assert.ok(fs.existsSync(resolveUpload(uploaded.path)));
+const sb = createLocalClient('service');
+const saved = await saveProduct({ id: product.id, is_active: true, images: [{ url: uploaded.url, path: uploaded.path }], translations: wording });
+assert.equal(saved.ok, true);
+await removeUnusedMedia(sb, [uploaded.path]);
+assert.ok(fs.existsSync(resolveUpload(uploaded.path)), 'saved files retained');
+const p = getDb().product_images.find((i) => i.product_id === product.id);
+const removed = await saveProduct({ id: product.id, is_active: false, images: [], translations: wording });
+assert.equal(removed.ok, true);
+assert.equal(getDb().product_images.some((i) => i.id === p.id), false);
+assert.equal(fs.existsSync(resolveUpload(uploaded.path)), false);
+let deleted = false;
+const failing = { from: () => ({ select: async () => ({ data: null, error: { message: 'offline' } }) }), storage: { from: () => ({ remove: async () => { deleted = true; } }) } };
+assert.ok(await removeUnusedMedia(failing, ['products/test.jpg'])); assert.equal(deleted, false);
+const old = 'products/owner/old.jpg';
+const mocked = { from: () => ({ select: async () => ({ data: [], error: null }) }), storage: { from: () => ({ list: async () => ({ data: [{ id: 'old', name: 'old.jpg', created_at: '2020-01-01' }], error: null }), getPublicUrl: (p) => ({ data: { publicUrl: `/api/local-media/${p}` } }), remove: async (paths) => { assert.deepEqual(paths, [old]); return { error: null }; } }) } };
+assert.equal(await cleanupAbandonedUploads(mocked, 'products', 'owner'), undefined);
+console.log('PASS: corrupt upload rejection, saved-image deletion, referenced-file retention and safe cleanup');
+
+delete process.env.CRON_SECRET;
+assert.equal((await GET(new Request('http://localhost/api/cron/supabase-keepalive'))).status, 503);
+process.env.CRON_SECRET = 'test-cron-secret';
+assert.equal((await GET(new Request('http://localhost/api/cron/supabase-keepalive'))).status, 401);
+assert.equal((await GET(new Request('http://localhost/api/cron/supabase-keepalive', { headers: { authorization: 'Bearer test-cron-secret' } }))).status, 200);
+const sitemap = (await load('src/app/sitemap.ts')).default;
+assert.ok((await sitemap()).every((e) => !new URL(e.url).pathname.startsWith('/admin')));
+console.log('PASS: cron authorization and admin-free sitemap');
+
+// Recovery mail is captured in memory; no real emails are sent and no live accounts are changed.
+process.env.SMTP_HOST = 'mail.example.invalid'; process.env.MAIL_FROM_EMAIL = 'security@example.invalid';
+const { hashPassword, verifyPassword, readLocalSession } = await load('src/lib/local/auth.ts');
+const { requestRecovery, redeemTemporaryPassword, readRecovery, setPermanentPassword } = await load('src/lib/password-recovery.ts');
+const { passwordLogin } = await load('src/lib/auth-ops.ts');
+const user = getDb().app_users.find((u) => u.id === uid);
+user.password_hash = hashPassword('Original-password-123'); user.totp_enabled = false; saveDb();
+const original = user.password_hash;
+assert.equal((await requestRecovery('unknown@example.invalid')).ok, true);
+assert.equal(globalThis.__sentMail.length, 0);
+assert.equal((await requestRecovery(user.email)).ok, true);
+assert.equal(globalThis.__sentMail.length, 1);
+const temporary = globalThis.__sentMail[0].text.match(/Temporary password: (\S+)/)[1];
+const recovery = getDb().admin_password_recovery.find((r) => r.user_id === uid);
+assert.ok(!JSON.stringify(recovery).includes(temporary)); assert.equal(user.password_hash, original);
+await requestRecovery(user.email); assert.equal(globalThis.__sentMail.length, 1, 'Shared account cooldown prevents duplicate emails');
+assert.equal(await redeemTemporaryPassword(user.email, 'MJ-xxxxxxxxxxxxxxxxxxxxxxxx'), false);
+await setLocalSession(uid, 2); await startAdminIdle(uid); const oldSession = jar.get('mj_local_session');
+assert.equal(await redeemTemporaryPassword(user.email, temporary), true);
+assert.equal(await readLocalSession(), null); assert.equal(await getAdmin(), null); assert.ok(await readRecovery());
+assert.equal(await redeemTemporaryPassword(user.email, temporary), false, 'Temporary passwords are single-use');
+assert.equal((await setPermanentPassword('short')).ok, false);
+assert.equal((await setPermanentPassword(temporary)).ok, false, 'Emailed password cannot become permanent');
+const grantCookie = jar.get('mj_password_recovery'); jar.set('mj_password_recovery', grantCookie + 'tampered');
+assert.equal((await setPermanentPassword('New-permanent-password-123')).ok, false); jar.set('mj_password_recovery', grantCookie);
+assert.equal((await setPermanentPassword('New-permanent-password-123')).ok, true);
+assert.equal(await readRecovery(), null); assert.equal(verifyPassword('Original-password-123', user.password_hash), false);
+assert.equal(verifyPassword('New-permanent-password-123', user.password_hash), true);
+jar.set('mj_local_session', oldSession); assert.equal(await readLocalSession(), null, 'Old local sessions are invalidated after reset');
+assert.equal((await setPermanentPassword('Another-permanent-password-123')).ok, false);
+assert.equal(globalThis.__sentMail.length, 2, 'Password-change notification is sent');
+user.totp_enabled = true; saveDb();
+assert.equal((await passwordLogin(user.email, 'New-permanent-password-123')).mfa, true, 'MFA still required');
+assert.equal(await getAdmin(), null);
+user.totp_enabled = false; recovery.created_at = '2020-01-01'; saveDb();
+await requestRecovery(user.email);
+const expiredTemp = globalThis.__sentMail.at(-1).text.match(/Temporary password: (\S+)/)[1];
+getDb().admin_password_recovery[0].expires_at = new Date(Date.now() - 1).toISOString(); saveDb();
+assert.equal(await redeemTemporaryPassword(user.email, expiredTemp), false);
+console.log('PASS: private single-use recovery, expiry, password replacement, session invalidation, notification and retained MFA');
+
+// Provisioning is exercised on a separate JSON backend; delivery uses the in-memory mail stub.
+const { provisionProductionAdmin } = await import('../scripts/production-admin.mjs');
+const provisionDir = fs.mkdtempSync(path.resolve('test/.tmp/provision-'));
+const provisionEnv = { APP_MODE: 'test', LOCAL_DATA_DIR: provisionDir, APP_SECRET: process.env.APP_SECRET };
+const messages = [];
+const options = { email: 'secure@example.invalid', name: 'Secure <Admin>', env: provisionEnv, output: (message) => messages.push(message) };
+await provisionProductionAdmin(options);
+let provisionDb = JSON.parse(fs.readFileSync(path.join(provisionDir, 'db.json')));
+const generated = messages.join('\n').match(/ONE-TIME TEMPORARY PASSWORD: (\S+)/)[1];
+assert.equal(provisionDb.app_users[0].mfa_required, true);
+assert.equal(provisionDb.app_users[0].password_change_required, true);
+assert.equal(verifyPassword(generated, provisionDb.app_users[0].password_hash), false, 'Temporary password is never a full Auth credential');
+assert.ok(!JSON.stringify(provisionDb).includes(generated));
+assert.ok(Date.parse(provisionDb.admin_password_recovery[0].expires_at) - Date.now() > 14 * 60_000);
+await assert.rejects(provisionProductionAdmin(options), /already exists/);
+const smtpEnv = { ...provisionEnv, SMTP_HOST: 'mock.invalid', MAIL_FROM_EMAIL: 'owner@example.invalid' };
+messages.length = 0;
+await provisionProductionAdmin({ ...options, reissue: true, env: smtpEnv });
+const invitation = globalThis.__sentMail.at(-1);
+assert.match(invitation.text, /mandatory/); assert.match(invitation.html, /Secure &lt;Admin&gt;/);
+const emailed = invitation.text.match(/Temporary password: (\S+)/)[1];
+assert.ok(!messages.join('\n').includes(emailed));
+provisionDb = JSON.parse(fs.readFileSync(path.join(provisionDir, 'db.json')));
+assert.notEqual(provisionDb.admin_password_recovery[0].temp_hash, createHmac('sha256', provisionEnv.APP_SECRET).update(`recovery:${generated}`).digest('hex'), 'Reissue invalidates the previous temporary password');
+globalThis.__mailFailure = true; messages.length = 0;
+await assert.rejects(provisionProductionAdmin({ ...options, reissue: true, env: smtpEnv }), /No password was displayed/);
+assert.ok(!messages.join('\n').includes('TEMPORARY PASSWORD'));
+globalThis.__mailFailure = false;
+console.log('PASS: production provisioning, single-use credential hashes, reissue, branded SMTP invitation and no secret fallback on SMTP failure');
+
+// Supabase provisioning contract, backed by the isolated local query emulator and a stub Auth provider.
+const providerPasswords = [];
+const supabaseStub = createLocalClient('service');
+supabaseStub.auth = { admin: {
+  createUser: async ({ password }) => { providerPasswords.push(password); return { data: { user: { id: '00000000-0000-4000-8000-000000008888' } }, error: null }; },
+  updateUserById: async (_id, { password }) => { providerPasswords.push(password); return { error: null }; },
+} };
+const providerMessages = [];
+const providerOptions = { email: 'provider@example.invalid', name: 'Provider Admin', env: { APP_MODE: 'supabase', APP_SECRET: process.env.APP_SECRET }, client: supabaseStub, output: (message) => providerMessages.push(message) };
+await provisionProductionAdmin(providerOptions);
+const providerUser = getDb().app_users.find((u) => u.email === providerOptions.email);
+assert.equal(providerUser.mfa_required, true); assert.equal(providerUser.password_change_required, true);
+const providerTemp = providerMessages.join('\n').match(/ONE-TIME TEMPORARY PASSWORD: (\S+)/)[1];
+assert.notEqual(providerTemp, providerPasswords[0]);
+assert.equal(await redeemTemporaryPassword(providerUser.email, providerTemp), true, 'Provisioned credential is compatible with the application recovery flow');
+assert.equal(await getAdmin(), null);
+await assert.rejects(provisionProductionAdmin(providerOptions), /already exists/);
+assert.equal(providerPasswords.length, 1, 'Existing accounts are untouched without explicit reissue');
+await provisionProductionAdmin({ ...providerOptions, reissue: true });
+assert.equal(providerPasswords.length, 2);
+console.log('PASS: Supabase provisioning contract, isolated Auth credentials and explicit reissue protection');
+
+// Exercise the real server authentication flow for a mandatory account.
+const { getMfaSetupAdmin } = await load('src/lib/admin-auth.ts');
+const { mfaBegin, mfaConfirm, mfaDisable } = await load('src/lib/auth-ops.ts');
+user.mfa_required = true; user.password_change_required = true; saveDb();
+await setLocalSession(uid, 2); await startAdminIdle(uid);
+assert.equal(await getAdmin(), null); assert.equal(await getMfaSetupAdmin(), null);
+assert.equal((await passwordLogin(user.email, 'New-permanent-password-123')).ok, false);
+const oneTime = 'MJ-abcdefghijklmnopqrstuvwx';
+getDb().admin_password_recovery = [{ id: 'mandatory-recovery', user_id: uid, temp_hash: createHmac('sha256', process.env.APP_SECRET).update(`recovery:${oneTime}`).digest('hex'), expires_at: new Date(Date.now() + 15 * 60_000).toISOString() }]; saveDb();
+assert.equal((await passwordLogin(user.email, oneTime)).reset, true);
+assert.equal(await getAdmin(), null); assert.equal(await getMfaSetupAdmin(), null);
+assert.equal((await setPermanentPassword('Secure-permanent-password-123')).ok, true);
+assert.equal(user.password_change_required, false);
+assert.equal((await passwordLogin(user.email, 'Secure-permanent-password-123')).setupMfa, true);
+assert.equal(await getAdmin(), null); assert.deepEqual((await getMfaSetupAdmin()).privileges, []);
+assert.equal((await saveSettingsForMandatory()).ok, false);
+async function saveSettingsForMandatory() { const { saveSettings } = await load('src/app/(admin)/admin/actions/settings.ts'); return saveSettings({ show_prices: true }); }
+const enrollment = await mfaBegin(); assert.equal(enrollment.ok, true);
+assert.equal((await mfaConfirm(enrollment.id, 'bad-code')).ok, false);
+// Independent RFC 6238 code to verify enrollment; no production authenticator is used.
+let bits = 0, value = 0; const secretBytes = [];
+for (const char of enrollment.secret) { value = (value << 5) | 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(char); bits += 5; if (bits >= 8) { secretBytes.push((value >>> (bits - 8)) & 255); bits -= 8; } }
+const counter = Buffer.alloc(8); counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)));
+const mac = createHmac('sha1', Buffer.from(secretBytes)).update(counter).digest(); const offset = mac.at(-1) & 15;
+const code = String((mac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, '0');
+assert.equal((await mfaConfirm(enrollment.id, code)).ok, true);
+assert.ok(await getAdmin()); assert.equal(await getMfaSetupAdmin(), null);
+assert.equal((await mfaDisable('local')).ok, false, 'Mandatory 2FA cannot be disabled');
+assert.equal((await passwordLogin(user.email, 'Secure-permanent-password-123')).mfa, true);
+assert.equal(await getAdmin(), null, 'Each subsequent sign-in still needs 2FA');
+await setLocalSession(uid, 2); user.mfa_required = false; saveDb();
+assert.equal((await mfaDisable('local')).ok, true, 'Existing optional 2FA remains optional');
+assert.equal((await passwordLogin(user.email, 'Secure-permanent-password-123')).setupMfa, false);
+assert.ok(await getAdmin());
+console.log('PASS: mandatory password change, limited enrollment session, verified 2FA enforcement and unchanged optional account behavior');
+
+const { rememberVerifiedDevice, validTrustedDevice, forgetTrustedDevices, listTrustedDevices, localFactorId } = await load('src/lib/trusted-devices.ts');
+const { mfaLogin, signOut } = await load('src/lib/auth-ops.ts');
+const { saveSettings: saveSecuritySettings } = await load('src/app/(admin)/admin/actions/settings.ts');
+const { revokeTrustedDevice, confirmTrustedDeviceReplacement } = await load('src/app/(admin)/admin/actions/trusted-devices.ts');
+const { newTotpSecret } = await load('src/lib/totp.ts');
+function currentTotp(secret) {
+  let bits = 0, value = 0; const bytes = [];
+  for (const char of secret) { value = (value << 5) | 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(char); bits += 5; if (bits >= 8) { bytes.push((value >>> (bits - 8)) & 255); bits -= 8; } }
+  const counter = Buffer.alloc(8); counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)));
+  const mac = createHmac('sha1', Buffer.from(bytes)).update(counter).digest();
+  return String((mac.readUInt32BE(mac.at(-1) & 15) & 0x7fffffff) % 1_000_000).padStart(6, '0');
+}
+user.totp_enabled = true; user.totp_secret = newTotpSecret(); user.mfa_required = true; saveDb();
+const trustedFactor = localFactorId(user.totp_secret);
+await passwordLogin(user.email, 'Secure-permanent-password-123');
+await assert.rejects(rememberVerifiedDevice(uid), /Verify a two-factor/);
+assert.equal((await mfaLogin(currentTotp(user.totp_secret), false)).ok, true);
+assert.equal(jar.has('mj_trusted_device'), false, 'No device is trusted without consent');
+assert.equal((await mfaLogin(currentTotp(user.totp_secret), true)).ok, true);
+const firstDeviceCookie = jar.get('mj_trusted_device');
+let firstDevice = getDb().admin_trusted_devices.find((r) => r.user_id === uid);
+assert.ok(!JSON.stringify(firstDevice).includes(firstDeviceCookie.split('.')[1]), 'Only the token hash is stored');
+assert.ok(Date.parse(firstDevice.expires_at) - Date.now() > 29 * 86400000);
+assert.equal((await createLocalClient('anon').from('admin_trusted_devices').select('*')).data.length, 0);
+assert.equal(await validTrustedDevice('another-user', trustedFactor), false);
+jar.set('mj_trusted_device', firstDeviceCookie.slice(0, -1) + (firstDeviceCookie.endsWith('a') ? 'b' : 'a'));
+assert.equal(await validTrustedDevice(uid, trustedFactor), false);
+jar.set('mj_trusted_device', firstDeviceCookie);
+await signOut(); assert.equal(jar.get('mj_trusted_device'), firstDeviceCookie, 'Ordinary logout preserves device trust');
+assert.equal(await getAdmin(), null, 'Trust alone never authenticates a user');
+assert.equal((await passwordLogin(user.email, 'wrong-password')).ok, false);
+assert.equal((await passwordLogin(user.email, 'Secure-permanent-password-123')).mfa, false);
+assert.ok(await getAdmin(), 'Password plus trusted device passes the server guard');
+assert.equal((await mfaBegin()).ok, false, 'Trust does not authorize changing 2FA without a fresh code');
+assert.equal((await mfaLogin(currentTotp(user.totp_secret))).ok, true);
+await rememberVerifiedDevice(uid);
+assert.equal(getDb().admin_trusted_devices.filter((r) => r.user_id === uid).length, 1, 'Renewing the same browser does not consume an extra slot');
+const renewedFirstCookie = jar.get('mj_trusted_device');
+getDb().admin_trusted_devices.find((r) => r.user_id === uid).last_used_at = new Date(Date.now() - 120000).toISOString(); saveDb();
+jar.delete('mj_trusted_device'); await rememberVerifiedDevice(uid);
+const secondCookie = jar.get('mj_trusted_device');
+getDb().admin_trusted_devices.find((r) => secondCookie.startsWith(r.id)).last_used_at = new Date(Date.now() - 60000).toISOString(); saveDb();
+jar.delete('mj_trusted_device');
+const beforeReplacement = JSON.stringify(getDb().admin_trusted_devices);
+const atLimit = await mfaLogin(currentTotp(user.totp_secret), true);
+assert.equal(atLimit.ok, true); assert.equal(atLimit.trustLimit.max, 2);
+assert.equal(JSON.stringify(getDb().admin_trusted_devices), beforeReplacement, 'Reaching the limit never silently evicts an existing device');
+assert.equal(jar.has('mj_trusted_device'), false);
+assert.equal((await confirmTrustedDeviceReplacement(false)).ok, false);
+assert.equal(JSON.stringify(getDb().admin_trusted_devices), beforeReplacement, 'Cancelling preserves all existing devices');
+await setLocalSession(uid, 1);
+assert.equal((await confirmTrustedDeviceReplacement(true)).ok, false, 'Confirmation alone cannot bypass fresh 2FA');
+assert.equal(JSON.stringify(getDb().admin_trusted_devices), beforeReplacement);
+await mfaLogin(currentTotp(user.totp_secret));
+assert.equal((await confirmTrustedDeviceReplacement(true)).ok, true);
+const thirdCookie = jar.get('mj_trusted_device');
+assert.equal(getDb().admin_trusted_devices.filter((r) => r.user_id === uid).length, 2);
+jar.set('mj_trusted_device', renewedFirstCookie); assert.equal(await validTrustedDevice(uid, trustedFactor), false, 'Third browser evicts the least recently used');
+jar.set('mj_trusted_device', secondCookie); assert.equal(await validTrustedDevice(uid, trustedFactor), true);
+jar.set('mj_trusted_device', thirdCookie);
+const devices = await listTrustedDevices(uid, trustedFactor); assert.equal(devices.length, 2); assert.ok(devices.some((r) => r.current));
+assert.ok(!JSON.stringify(devices).includes('token_hash'));
+assert.equal((await saveSecuritySettings({ admin_trusted_device_days: 0 })).ok, false);
+assert.equal((await saveSecuritySettings({ admin_max_trusted_devices: 11 })).ok, false);
+assert.equal((await saveSecuritySettings({ admin_trusted_device_days: 7, admin_max_trusted_devices: 1 })).ok, true);
+assert.equal(getDb().admin_trusted_devices.filter((r) => r.user_id === uid).length, 1, 'Reducing the cap removes excess devices immediately');
+jar.set('mj_trusted_device', secondCookie); assert.equal(await validTrustedDevice(uid, trustedFactor), false);
+jar.set('mj_trusted_device', thirdCookie);
+const remaining = getDb().admin_trusted_devices.find((r) => r.user_id === uid);
+remaining.created_at = new Date(Date.now() - 8 * 86400000).toISOString(); saveDb();
+assert.equal(await validTrustedDevice(uid, trustedFactor), false, 'Shorter configured duration also affects previous grants');
+await rememberVerifiedDevice(uid);
+firstDevice = getDb().admin_trusted_devices.find((r) => r.user_id === uid);
+firstDevice.expires_at = new Date(Date.now() - 1).toISOString(); saveDb();
+assert.equal(await validTrustedDevice(uid, trustedFactor), false);
+await rememberVerifiedDevice(uid);
+assert.equal((await revokeTrustedDevice('00000000-0000-4000-8000-000000000000')).ok, true);
+assert.equal(await validTrustedDevice(uid, trustedFactor), true, 'Revoking an unrelated ID does not affect your current device');
+assert.equal((await revokeTrustedDevice(jar.get('mj_trusted_device').split('.')[0])).ok, true);
+assert.equal(jar.has('mj_trusted_device'), false); assert.equal(getDb().admin_trusted_devices.filter((r) => r.user_id === uid).length, 0);
+await rememberVerifiedDevice(uid);
+assert.equal((await saveSecuritySettings({ admin_trusted_devices_enabled: false })).ok, true);
+assert.equal(getDb().admin_trusted_devices.length, 0);
+assert.equal(await validTrustedDevice(uid, trustedFactor), false);
+await assert.rejects(rememberVerifiedDevice(uid), /disabled/);
+assert.equal((await saveSecuritySettings({ admin_trusted_devices_enabled: true, admin_trusted_device_days: 30, admin_max_trusted_devices: 2 })).ok, true);
+assert.equal(await validTrustedDevice(uid, trustedFactor), false, 'Re-enabling never revives a revoked cookie');
+await rememberVerifiedDevice(uid);
+user.password_hash = hashPassword('Updated-password-123'); saveDb();
+assert.equal(await validTrustedDevice(uid, trustedFactor), false, 'Password replacement invalidates a local device even with an unchanged updated timestamp');
+await forgetTrustedDevices(uid); user.mfa_required = false; saveDb();
+assert.equal((await mfaDisable('local')).ok, true);
+assert.equal(getDb().admin_trusted_devices.filter((r) => r.user_id === uid).length, 0);
+console.log('PASS: trusted-device consent, secure token storage, password requirement, cross-user isolation, expiry, configured duration/cap, LRU eviction, revocation and fresh 2FA for security changes');
+
+// Hero uploads use settings permissions, survive cleanup while saved and are deleted only after removal is saved.
+await setLocalSession(uid, 2); await startAdminIdle(uid);
+const { saveSettings } = await load('src/app/(admin)/admin/actions/settings.ts');
+const heroFile = new FormData(); heroFile.set('folder', 'settings'); heroFile.set('file', new File([await sharp({ create: { width: 40, height: 20, channels: 3, background: '#701734' } }).png().toBuffer()], 'hero.png', { type: 'image/png' }));
+const heroUpload = await uploadImage(heroFile); assert.equal(heroUpload.ok, true);
+assert.equal((await saveSettings({ hero_background_url: heroUpload.url, hero_background_path: heroUpload.path })).ok, true);
+await removeUnusedMedia(createLocalClient('service'), [heroUpload.path]); assert.ok(fs.existsSync(resolveUpload(heroUpload.path)));
+assert.equal((await saveSettings({ hero_background_url: '', hero_background_path: '' })).ok, true);
+assert.ok(!fs.existsSync(resolveUpload(heroUpload.path)));
+console.log('PASS: hero background upload, persistence and safe removal');
+
+const { getBackendStatus } = await load('src/lib/backend-status.ts');
+const nativeFetch = globalThis.fetch;
+process.env.APP_MODE = 'supabase'; process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://unit-test.supabase.co'; process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'unit-test-key';
+globalThis.fetch = async () => new Response(JSON.stringify({ code: 'PGRST205', message: 'table missing' }), { status: 404, headers: { 'content-type': 'application/json' } });
+assert.equal(await getBackendStatus(), 'setup');
+const { getProducts } = await load('src/lib/data.ts'); assert.deepEqual(await getProducts(), []);
+globalThis.fetch = async (input) => new Response(JSON.stringify(String(input).includes('products') ? [] : [{ id: 1, code: 'en' }]), { headers: { 'content-type': 'application/json' } });
+assert.equal(await getBackendStatus(), 'empty');
+globalThis.fetch = async () => new Response('[{"id":1}]', { headers: { 'content-type': 'application/json' } }); assert.equal(await getBackendStatus(), 'ready');
+globalThis.fetch = async () => new Response('{"code":"denied"}', { status: 401, headers: { 'content-type': 'application/json' } }); assert.equal(await getBackendStatus(), 'unavailable');
+delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; assert.equal(await getBackendStatus(), 'unconfigured');
+globalThis.fetch = nativeFetch; process.env.APP_MODE = 'test';
+console.log('PASS: missing database, empty catalogue, connection failure and missing configuration states');
+
+const originalDirectory = process.env.LOCAL_DATA_DIR;
+process.env.LOCAL_DATA_DIR = provisionDir;
+const firstStart = getDb();
+assert.equal(firstStart.app_users[0].mfa_required, true);
+assert.equal(firstStart.admin_password_recovery.length, 1, 'First-start seeding preserves a pre-created secure invitation');
+assert.ok(firstStart.roles.length);
+process.env.LOCAL_DATA_DIR = originalDirectory;
+console.log('PASS: secure invitation survives first-start local sample seeding');
+
+const { loadEnvironment } = await import('../scripts/environment.mjs');
+const configRoot = fs.mkdtempSync(path.resolve('test/.tmp/config-')); fs.mkdirSync(path.join(configRoot, 'config'));
+fs.writeFileSync(path.join(configRoot, '.env.local'), 'APP_ENV=dev\nSUPABASE_SERVICE_ROLE_KEY=wrong-legacy-key\nSMTP_PASS=wrong-legacy-password\n');
+fs.writeFileSync(path.join(configRoot, 'config/dev.env'), 'APP_MODE=test\nSUPABASE_SERVICE_ROLE_KEY=dev-key\n');
+fs.writeFileSync(path.join(configRoot, 'config/prod.env'), 'APP_MODE=supabase\nSUPABASE_SERVICE_ROLE_KEY=prod-key\n');
+let env = {}; assert.equal(loadEnvironment([], configRoot, env).name, 'dev'); assert.equal(env.SUPABASE_SERVICE_ROLE_KEY, 'dev-key'); assert.equal(env.SMTP_PASS, '');
+env = {}; assert.equal(loadEnvironment(['setup', '--env', 'prod'], configRoot, env).name, 'prod'); assert.equal(env.SUPABASE_SERVICE_ROLE_KEY, 'prod-key');
+env = { SUPABASE_SERVICE_ROLE_KEY: 'hosted-key' }; loadEnvironment(['--env', 'dev'], configRoot, env); assert.equal(env.SUPABASE_SERVICE_ROLE_KEY, 'hosted-key');
+assert.throws(() => loadEnvironment(['--env', '../prod'], configRoot, {})); assert.throws(() => loadEnvironment(['--env', 'missing'], configRoot, {}));
+console.log('PASS: environment isolation, selector and CLI precedence, hosting overrides and invalid profile rejection');
+
+const productionGuard = spawnSync(process.execPath, [path.resolve('scripts/batch-runner.mjs'), 'admin-production', '--yes'], { cwd: configRoot, encoding: 'utf8', env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, APP_ENV: 'dev' }, stdio: ['pipe', 'pipe', 'pipe'] });
+assert.equal(productionGuard.status, 2, 'No noninteractive production provisioning, even with --yes');
+assert.match(productionGuard.stdout, /SELECTED ENVIRONMENT: PROD \[PRODUCTION\]/, 'New batch defaults to prod despite the dev selector');
+assert.match(productionGuard.stderr, /requires confirmation/);
+console.log('PASS: production default and mandatory interactive confirmation before any operation');
+
+// Wrong-password lockout: limit from settings, blocked even with the right password, ends by itself, reset after success.
+{
+  const { hashPassword } = await load('src/lib/local/auth.ts');
+  const { passwordLogin } = await load('src/lib/auth-ops.ts');
+  const { saveSettings } = await load('src/app/(admin)/admin/actions/settings.ts');
+  const db = getDb();
+  const template = db.app_users.find((u) => u.is_active && !u.password_change_required && !u.mfa_required) ?? db.app_users[0];
+  const roleRow = db.user_roles.find((r) => r.is_active);
+  const lockUser = { ...template, id: crypto.randomUUID(), email: 'lockout@example.test', full_name: 'Lock Test', is_active: true, password_hash: hashPassword('Correct-password-123'), totp_enabled: false, totp_secret: null, mfa_required: false, password_change_required: false };
+  db.app_users.push(lockUser); db.user_roles.push({ ...roleRow, id: crypto.randomUUID(), user_id: lockUser.id }); saveDb();
+  db.site_settings[0].data = { ...db.site_settings[0].data, admin_max_failed_logins: 3, admin_lockout_minutes: 10 }; saveDb();
+  assert.equal((await passwordLogin(lockUser.email, 'wrong-1')).ok, false);
+  assert.equal((await passwordLogin(lockUser.email, 'wrong-2')).ok, false);
+  assert.equal((await passwordLogin(lockUser.email, 'Correct-password-123')).ok, true, 'a correct password below the limit works and resets the count');
+  for (const n of [1, 2]) assert.equal((await passwordLogin(lockUser.email, `wrong-${n}`)).error, 'Incorrect email or password');
+  const third = await passwordLogin(lockUser.email, 'wrong-3');
+  assert.match(third.error, /blocked for about 10 more minutes/);
+  const blocked = await passwordLogin(lockUser.email, 'Correct-password-123');
+  assert.equal(blocked.ok, false); assert.match(blocked.error, /blocked/, 'the right password is refused during the block');
+  assert.equal((await passwordLogin('nobody@example.test', 'x')).error, 'Incorrect email or password', 'unknown emails are never blocked or revealed');
+  db.admin_login_attempts.find((r) => r.user_id === lockUser.id).locked_until = new Date(Date.now() - 1000).toISOString(); saveDb();
+  assert.equal((await passwordLogin(lockUser.email, 'Correct-password-123')).ok, true, 'the block ends by itself');
+  console.log('PASS: wrong-password lockout (configured limit, block even with the right password, expiry, reset, unknown emails)');
+}

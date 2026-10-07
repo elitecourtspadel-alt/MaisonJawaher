@@ -1,0 +1,12 @@
+node_modules
+.next
+.env*
+!.env.example
+*.tsbuildinfo
+next-env.d.ts
+.data
+.data-test
+.data*/
+config/*.env
+
+test/.tmp
