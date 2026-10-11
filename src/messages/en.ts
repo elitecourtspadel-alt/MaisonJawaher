@@ -1,0 +1,77 @@
+const en = {
+  brand: 'Maison Jawaher',
+  tagline: 'Jewelry made in Morocco',
+  nav: { home: 'Home', shop: 'Shop', collections: 'Collections', about: 'Our story', contact: 'Contact', faq: 'FAQ', cart: 'Cart', openMenu: 'Open the menu', closeMenu: 'Close the menu', allPieces: 'See everything', main: 'Main menu', announcements: 'Announcements' },
+  theme: { light: 'Light', dark: 'Dark', system: 'Match my device', label: 'Colour mode' },
+  lang: { label: 'Language', en: 'English', fr: 'Français' },
+  common: {
+    and: 'and',
+    viewAll: 'See all', discover: 'Have a look', send: 'Send message', sending: 'Sending…', close: 'Close',
+    previous: 'Previous', next: 'Next', scrollLeft: 'Scroll left', scrollRight: 'Scroll right', back: 'Back', search: 'Search',
+    required: 'Please fill this in', invalidEmail: 'That email address does not look right', invalidPhone: 'That phone number does not look right',
+    somethingWrong: 'Something went wrong. Please try again in a moment.', currency: 'MAD', priceOnRequest: 'Price on request', outOfStock: 'Sold out',
+    inStock: 'Available', new: 'New', featured: 'Favourite', skipToContent: 'Skip to the content', onThisPage: 'On this page',
+    backToTop: 'Back to the top',
+  },
+  home: {
+    eyebrow: 'Maison Jawaher',
+    heroTitle: 'Jewelry for the modern Moroccan woman',
+    heroTitleLead: 'Jewelry for the modern', heroTitleAccent: 'Moroccan woman',
+    heroSub: 'Fine pieces designed in Morocco and finished by hand — rings, necklaces, earrings and bracelets made to be worn every day and remembered for far longer.',
+    ctaShop: 'Discover the Collection', ctaStory: 'Our Story',
+    collectionsEyebrow: 'Browse', collectionsTitle: 'Shop by category',
+    featuredEyebrow: 'Most loved', featuredTitle: 'Signature pieces',
+    newEyebrow: 'Just arrived', newTitle: 'New this season',
+    editEyebrow: 'A closer look', editTitle: 'The Collection Edit',
+    promiseTitle: 'What to expect',
+    promises: [
+      { t: 'Made by hand', d: 'Every piece is finished by hand in Morocco, in small batches.' },
+      { t: 'Made to be worn', d: 'Gold vermeil and sterling silver, chosen for everyday wear.' },
+      { t: 'Delivered to your door', d: 'We deliver across Morocco and you pay when it arrives.' },
+    ],
+    typeLead: 'Call or message us',
+    faqEyebrow: 'Questions', faqTitle: 'Before you order',
+  },
+  shop: {
+    title: 'Shop', subtitle: 'Everything in the collection, in one place.', all: 'All', sort: 'Sort by', sortNew: 'Newest', sortPriceAsc: 'Price, low to high', sortPriceDesc: 'Price, high to low', sortName: 'Name',
+    searchPlaceholder: 'Search the shop', empty: 'We could not find anything for that search.', results: '{n} pieces',
+  },
+  product: {
+    zoom: 'Enlarge photo', closeZoom: 'Close enlarged photo',
+    addToCart: 'Add to cart', viewCart: 'View cart', added: 'Added to your cart', orderWhatsApp: 'Order on WhatsApp', askPrice: 'Ask us about this piece', material: 'Material', weight: 'Weight', dimensions: 'Size', sku: 'Reference',
+    details: 'Details', related: 'You might also like', quantity: 'Quantity', notFound: 'We could not find this piece.', home: 'Home',
+  },
+  cart: {
+    agree: 'By placing your order you agree to our',
+    title: 'Your cart', empty: 'Your cart is empty.', continue: 'Keep shopping', remove: 'Remove', subtotal: 'Subtotal', total: 'Total',
+    checkoutTitle: 'Delivery details', placeOrder: 'Place my order', placing: 'Sending your order…', cod: 'You pay in cash when the parcel arrives, anywhere in Morocco.',
+    inquiryNote: 'We will tell you the prices when we contact you to confirm the order.',
+    name: 'Full name', phone: 'Phone', email: 'Email (optional)', city: 'City', address: 'Delivery address', notes: 'Anything we should know? (optional)',
+    successTitle: 'Thank you, we have your order', successBody: 'We will call or message you shortly to confirm it.', orderNumber: 'Order number', viewWhatsApp: 'Confirm on WhatsApp',
+    whatsappIntro: 'Hello Maison Jawaher, I would like to order:', clearAll: 'Empty the cart',
+  },
+  about: {
+    title: 'Our story', subtitle: 'Made in Morocco, worn everywhere.',
+    sections: [
+      { id: 'origins', title: 'How it started', body: 'Maison Jawaher began in 2026. “Jawaher” means jewels in Arabic. We wanted to make jewelry that feels modern and still carries something of Moroccan craft.' },
+      { id: 'craft', title: 'How we make it', body: 'Each piece starts as a sketch. It is cast and polished in small batches and then finished by hand. We like simple lines, materials that age well and pieces you do not have to take off.' },
+      { id: 'promise', title: 'What we promise', body: 'We use honest materials and we pay people fairly for their work. If something is not right with your order, tell us and we will sort it out.' },
+    ],
+  },
+  contact: {
+    title: 'Contact us', subtitle: 'A question about a piece, a gift or an order? Write to us and we will answer as soon as we can.',
+    formTitle: 'Send us a message', name: 'Your name', email: 'Email', phone: 'Phone (optional)', subject: 'Subject', message: 'Message',
+    successTitle: 'Message sent', successBody: 'Thank you. We will get back to you soon.',
+    hours: 'Opening hours', address: 'Find us', phoneLabel: 'Call or WhatsApp', emailLabel: 'Email', closed: 'Closed', followUs: 'Follow us',
+    days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+    openMap: 'Open in Maps',
+  },
+  whatsapp: { chat: 'Chat with us on WhatsApp', chatShort: 'Chat with us', hello: 'Hello Maison Jawaher, I have a question.' },
+  community: { title: 'Join our WhatsApp community', body: 'New pieces and offers are shared with the group first.', cta: 'Join the community' },
+  footer: { explore: 'Explore', collections: 'Collections', contact: 'Contact us', follow: 'Follow us', rights: 'All rights reserved.', madeIn: 'Made in Morocco', privacy: 'Privacy policy', terms: 'Terms of use', legal: 'Legal' },
+  notFound: { title: 'Page not found', body: 'This page does not exist or has moved.', cta: 'Back to the home page' },
+  toast: { error: 'Something went wrong', success: 'Done' },
+};
+
+export type Dict = typeof en;
+export default en;

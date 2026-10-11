@@ -1,0 +1,77 @@
+import type { Dict } from './en';
+
+const fr: Dict = {
+  brand: 'Maison Jawaher',
+  tagline: 'Bijoux faits au Maroc',
+  nav: { home: 'Accueil', shop: 'Boutique', collections: 'Collections', about: 'Notre histoire', contact: 'Contact', faq: 'FAQ', cart: 'Panier', openMenu: 'Ouvrir le menu', closeMenu: 'Fermer le menu', allPieces: 'Tout voir', main: 'Menu principal', announcements: 'Annonces' },
+  theme: { light: 'Clair', dark: 'Sombre', system: 'Comme mon appareil', label: 'Mode d’affichage' },
+  lang: { label: 'Langue', en: 'English', fr: 'Français' },
+  common: {
+    and: 'et',
+    viewAll: 'Tout voir', discover: 'Découvrir', send: 'Envoyer le message', sending: 'Envoi…', close: 'Fermer',
+    previous: 'Précédent', next: 'Suivant', scrollLeft: 'Défiler vers la gauche', scrollRight: 'Défiler vers la droite', back: 'Retour', search: 'Rechercher',
+    required: 'Merci de remplir ce champ', invalidEmail: 'Cette adresse e-mail ne semble pas correcte', invalidPhone: 'Ce numéro de téléphone ne semble pas correct',
+    somethingWrong: 'Une erreur est survenue. Merci de réessayer dans un instant.', currency: 'MAD', priceOnRequest: 'Prix sur demande', outOfStock: 'Épuisé',
+    inStock: 'Disponible', new: 'Nouveau', featured: 'Coup de cœur', skipToContent: 'Aller au contenu', onThisPage: 'Sur cette page',
+    backToTop: 'Retour en haut',
+  },
+  home: {
+    eyebrow: 'Maison Jawaher',
+    heroTitle: 'Des bijoux pour la femme marocaine moderne',
+    heroTitleLead: 'Des bijoux pour la', heroTitleAccent: 'femme marocaine moderne',
+    heroSub: 'Des pièces raffinées conçues au Maroc et finies à la main — bagues, colliers, boucles d’oreilles et bracelets à porter chaque jour et à chérir longtemps.',
+    ctaShop: 'Découvrir la collection', ctaStory: 'Notre histoire',
+    collectionsEyebrow: 'Parcourir', collectionsTitle: 'Nos catégories',
+    featuredEyebrow: 'Les plus aimées', featuredTitle: 'Pièces signature',
+    newEyebrow: 'Tout juste arrivé', newTitle: 'Nouveautés de la saison',
+    editEyebrow: 'À découvrir', editTitle: 'La sélection Maison',
+    promiseTitle: 'Ce que vous pouvez attendre',
+    promises: [
+      { t: 'Fait main', d: 'Chaque pièce est finie à la main au Maroc, en petites séries.' },
+      { t: 'Fait pour être porté', d: 'Vermeil et argent 925, choisis pour un usage quotidien.' },
+      { t: 'Livré chez vous', d: 'Nous livrons partout au Maroc et vous payez à la réception.' },
+    ],
+    typeLead: 'Appelez-nous ou écrivez-nous',
+    faqEyebrow: 'Questions', faqTitle: 'Avant de commander',
+  },
+  shop: {
+    title: 'Boutique', subtitle: 'Toute la collection, au même endroit.', all: 'Tout', sort: 'Trier par', sortNew: 'Nouveautés', sortPriceAsc: 'Prix croissant', sortPriceDesc: 'Prix décroissant', sortName: 'Nom',
+    searchPlaceholder: 'Rechercher dans la boutique', empty: 'Nous n’avons rien trouvé pour cette recherche.', results: '{n} pièces',
+  },
+  product: {
+    zoom: 'Agrandir la photo', closeZoom: 'Fermer la photo agrandie',
+    addToCart: 'Ajouter au panier', viewCart: 'Voir le panier', added: 'Ajouté à votre panier', orderWhatsApp: 'Commander sur WhatsApp', askPrice: 'Nous poser une question', material: 'Matière', weight: 'Poids', dimensions: 'Taille', sku: 'Référence',
+    details: 'Détails', related: 'Vous aimerez aussi', quantity: 'Quantité', notFound: 'Nous n’avons pas trouvé cette pièce.', home: 'Accueil',
+  },
+  cart: {
+    agree: 'En passant commande, vous acceptez nos',
+    title: 'Votre panier', empty: 'Votre panier est vide.', continue: 'Continuer mes achats', remove: 'Retirer', subtotal: 'Sous-total', total: 'Total',
+    checkoutTitle: 'Informations de livraison', placeOrder: 'Passer ma commande', placing: 'Envoi de votre commande…', cod: 'Vous payez en espèces à la réception du colis, partout au Maroc.',
+    inquiryNote: 'Nous vous donnerons les prix quand nous vous contacterons pour confirmer la commande.',
+    name: 'Nom complet', phone: 'Téléphone', email: 'E-mail (facultatif)', city: 'Ville', address: 'Adresse de livraison', notes: 'Un détail à nous signaler ? (facultatif)',
+    successTitle: 'Merci, nous avons bien reçu votre commande', successBody: 'Nous vous appelons ou vous écrivons très vite pour la confirmer.', orderNumber: 'Numéro de commande', viewWhatsApp: 'Confirmer sur WhatsApp',
+    whatsappIntro: 'Bonjour Maison Jawaher, je souhaite commander :', clearAll: 'Vider le panier',
+  },
+  about: {
+    title: 'Notre histoire', subtitle: 'Faits au Maroc, portés partout.',
+    sections: [
+      { id: 'origins', title: 'Comment tout a commencé', body: 'Maison Jawaher est née en 2026. « Jawaher » veut dire bijoux en arabe. Nous voulions créer des bijoux modernes qui gardent quelque chose de l’artisanat marocain.' },
+      { id: 'craft', title: 'Comment nous les fabriquons', body: 'Chaque pièce commence par un croquis. Elle est coulée et polie en petites séries, puis finie à la main. Nous aimons les lignes simples, les matières qui vieillissent bien et les bijoux que l’on n’a pas envie d’enlever.' },
+      { id: 'promise', title: 'Ce que nous vous promettons', body: 'Nous travaillons avec des matières honnêtes et nous rémunérons justement le travail de chacun. Si quelque chose ne va pas avec votre commande, dites-le-nous et nous le réglerons.' },
+    ],
+  },
+  contact: {
+    title: 'Contactez-nous', subtitle: 'Une question sur un bijou, un cadeau ou une commande ? Écrivez-nous, nous vous répondrons dès que possible.',
+    formTitle: 'Envoyez-nous un message', name: 'Votre nom', email: 'E-mail', phone: 'Téléphone (facultatif)', subject: 'Sujet', message: 'Message',
+    successTitle: 'Message envoyé', successBody: 'Merci. Nous vous répondrons bientôt.',
+    hours: 'Horaires d’ouverture', address: 'Où nous trouver', phoneLabel: 'Appel ou WhatsApp', emailLabel: 'E-mail', closed: 'Fermé', followUs: 'Suivez-nous',
+    days: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'],
+    openMap: 'Ouvrir dans Maps',
+  },
+  whatsapp: { chat: 'Discuter avec nous sur WhatsApp', chatShort: 'Discutons', hello: 'Bonjour Maison Jawaher, j’ai une question.' },
+  community: { title: 'Rejoignez notre communauté WhatsApp', body: 'Les nouvelles pièces et les offres sont partagées d’abord avec le groupe.', cta: 'Rejoindre la communauté' },
+  footer: { explore: 'Explorer', collections: 'Collections', contact: 'Nous contacter', follow: 'Suivez-nous', rights: 'Tous droits réservés.', madeIn: 'Fait au Maroc', privacy: 'Politique de confidentialité', terms: 'Conditions d’utilisation', legal: 'Informations légales' },
+  notFound: { title: 'Page introuvable', body: 'Cette page n’existe pas ou a été déplacée.', cta: 'Retour à l’accueil' },
+  toast: { error: 'Une erreur est survenue', success: 'C’est fait' },
+};
+export default fr;
